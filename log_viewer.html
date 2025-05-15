@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Claude Code JSONL Log Viewer</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:20px;background:#f7f7f7}
+    header{margin-bottom:20px}
+    input[type=file]{margin:10px 0}
+    #toc{margin-bottom:20px}
+    .section{margin-bottom:10px;border:1px solid #ccc;border-radius:6px;background:#fff}
+    .section-header{background:#e9e9e9;padding:8px 12px;cursor:pointer;display:flex;justify-content:space-between}
+    .section-header h3{margin:0;font-size:16px}
+    .section-body{display:none;padding:10px 12px}
+    .line{margin-bottom:6px;border-left:4px solid #ddd;padding-left:6px;background:#fafafa;border-radius:4px}
+    .line.user{border-color:#2196f3}
+    .line.action{border-color:#ff5722}
+    .line.assistant{border-color:#4caf50}
+    .line.assistant-tool-call{border-color:#66bb6a}
+    .line.summary{border-color:#9e9e9e}
+    .line.tool-result{border-color:#ff9800}
+    .attrs{font-size:12px;color:#555}
+    .raw-json{display:none;white-space:pre;background:#272822;color:#f8f8f2;padding:10px;border-radius:4px;overflow-x:auto}
+    button{margin-left:8px;cursor:pointer}
+    #toc ul{list-style:none;padding-left:0}
+    #toc li{margin-bottom:4px}
+    .collapsible{cursor:pointer}
+    /* JSON highlight */
+    .key{color:#f92672}
+    .string{color:#a6e22e}
+    .number{color:#ae81ff}
+    .boolean{color:#66d9ef}
+    .null{color:#fd971f}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Claude Code JSONL Log Viewer</h1>
+    Find the file in ~.claude/projects/<br>
+    <input type="file" id="fileInput" accept=".jsonl,.log,.txt">
+  </header>
+
+  <div id="toc" class="section">
+    <div class="section-header" onclick="toggleToc()">
+      <h3>Table of Contents</h3><span id="tocToggle">[+]</span>
+    </div>
+    <div id="tocBody" class="section-body"></div>
+  </div>
+
+  <div id="sessions"></div>
+
+<script>
+/* --------------------------------------------------
+   Helper utilities
+-------------------------------------------------- */
+const interestingAttributes=[
+  'type','timestamp','uuid','parentUuid','message.role',
+  'costUSD','durationMs','summary','toolUseResult'
+];
+const CONTINUATION_MARKER='This session is being continued from a previous conversation that ran out of context.';
+
+function toggleToc(){
+  const body=document.getElementById('tocBody');
+  const toggle=document.getElementById('tocToggle');
+  const show=body.style.display==='none'||!body.style.display;
+  body.style.display=show?'block':'none';
+  toggle.textContent=show?'[–]':'[+]';
+}
+
+function syntaxHighlight(json){
+  if(typeof json!=='string') json=JSON.stringify(json,undefined,2);
+  json=json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return json.replace(/("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"\n])*"(?=:)|"(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"\n])*"|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,m=>{
+    let cls='number';
+    if(/^"/.test(m)) cls=/:$/.test(m)?'key':'string';
+    else if(/true|false/.test(m)) cls='boolean';
+    else if(/null/.test(m)) cls='null';
+    return `<span class="${cls}">${m}</span>`;
+  });
+}
+
+function getType(obj){
+  if(obj.type==='summary') return 'summary';
+  if(obj.type==='assistant'){
+    if(Array.isArray(obj.message?.content))
+      return obj.message.content.some(c=>c.type==='tool_use')?'assistant-tool-call':'assistant';
+    return 'assistant';
+  }
+  if(obj.type==='user'){
+    const msgStr=typeof obj.message?.content==='string'?obj.message.content:'';
+    if(msgStr.startsWith(CONTINUATION_MARKER)) return 'action';
+    if(obj.isMeta) return 'user-meta';
+    if(obj.toolUseResult) return 'tool-result';
+    if(obj.message&&typeof obj.message.content!=='string') return 'tool-result';
+    return 'user';
+  }
+  return 'other';
+}
+
+function extractSessionId(obj){
+  return obj.sessionUuid||obj.conversationId||obj.session_id||'default';
+}
+
+/* --------------------------------------------------
+   File handling
+-------------------------------------------------- */
+document.getElementById('fileInput').addEventListener('change',e=>{
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>processText(ev.target.result);
+  reader.readAsText(file);
+});
+
+function processText(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim().length);
+  const parsed=[];
+  for(const l of lines){
+    try{parsed.push(JSON.parse(l));}catch{/* skip bad JSON */}
+  }
+  const cleaned=parsed.filter(o=>{
+    if(!o) return false;
+    if(o.type||o.message||o.summary||o.toolUseResult||o.isMeta) return true;
+    const keys=Object.keys(o);
+    return !(keys.length<=2&&keys.includes('uuid'));
+  });
+  render(cleaned);
+}
+
+/* --------------------------------------------------
+   Rendering
+-------------------------------------------------- */
+function render(data){
+  const sessionsDiv=document.getElementById('sessions');
+  sessionsDiv.innerHTML='';
+  const tocBody=document.getElementById('tocBody');
+  tocBody.innerHTML='';
+
+  const sessions={};
+  data.forEach(o=>{(sessions[extractSessionId(o)]=sessions[extractSessionId(o)]||[]).push(o);});
+
+  const tocList=document.createElement('ul');
+  let sessionCounter=0;
+
+  for(const [sid,arr] of Object.entries(sessions)){
+    sessionCounter++;
+    const section=document.createElement('div');
+    section.className='section';
+    section.id=`session_${sessionCounter}`;
+
+    const header=document.createElement('div');
+    header.className='section-header collapsible';
+    header.innerHTML=`<h3>Session ${sessionCounter} (${sid})</h3><span>[+]</span>`;
+    header.onclick=()=>{
+      const body=section.querySelector('.section-body');
+      const span=header.querySelector('span');
+      const show=body.style.display==='none'||!body.style.display;
+      body.style.display=show?'block':'none';
+      span.textContent=show?'[–]':'[+]';
+    };
+    section.appendChild(header);
+
+    const body=document.createElement('div');
+    body.className='section-body';
+    body.style.display='none';
+    section.appendChild(body);
+
+    const tocItem=document.createElement('li');
+    tocItem.innerHTML=`<a href="#${section.id}">Session ${sessionCounter}</a>`;
+    tocList.appendChild(tocItem);
+
+    const userIndices=arr.map((obj,i)=>({obj,i})).filter(o=>getType(o.obj)==='user').map(o=>o.i);
+    userIndices.push(arr.length);
+
+    userIndices.forEach(startIdx=>{
+      if(startIdx>=arr.length) return;
+      const nextIdx=userIndices[userIndices.indexOf(startIdx)+1];
+      const userObj=arr[startIdx];
+
+      const userDiv=document.createElement('div');
+      userDiv.className='line user';
+
+      const attr=document.createElement('span');
+      attr.className='attrs';
+      if(userObj.timestamp) attr.textContent+=`[${new Date(userObj.timestamp).toLocaleString()}] `;
+      if(userObj.uuid) attr.textContent+=`uuid: ${userObj.uuid} `;
+      userDiv.appendChild(attr);
+
+      const msg=document.createElement('span');
+      msg.textContent=typeof userObj.message?.content==='string'?userObj.message.content:'[non-string user content]';
+      userDiv.appendChild(msg);
+
+      const actBtn=document.createElement('button');
+      actBtn.textContent='Show actions';
+      userDiv.appendChild(actBtn);
+
+      const rawBtn=document.createElement('button');
+      rawBtn.textContent='Raw JSON';
+      userDiv.appendChild(rawBtn);
+      const rawPre=document.createElement('pre');
+      rawPre.className='raw-json';
+      rawPre.innerHTML=syntaxHighlight(userObj);
+      userDiv.appendChild(rawPre);
+      rawBtn.onclick=()=>{
+        const show=rawPre.style.display==='none'||!rawPre.style.display;
+        rawPre.style.display=show?'block':'none';
+        rawBtn.textContent=show?'Hide JSON':'Raw JSON';
+      };
+
+      body.appendChild(userDiv);
+
+      const ctxDiv=document.createElement('div');
+      ctxDiv.style.display='none';
+      ctxDiv.style.marginLeft='20px';
+      actBtn.onclick=()=>{
+        const show=ctxDiv.style.display==='none';
+        ctxDiv.style.display=show?'block':'none';
+        actBtn.textContent=show?'Hide actions':'Show actions';
+      };
+
+      for(let i=startIdx+1;i<nextIdx;i++){
+        const lineObj=arr[i];
+        const ltype=getType(lineObj);
+        if(ltype==='other') continue;
+
+        const lineDiv=document.createElement('div');
+        lineDiv.className=`line ${ltype}`;
+
+        const lAttr=document.createElement('span');
+        lAttr.className='attrs';
+        const parts=[];
+        interestingAttributes.forEach(k=>{
+          let val=k==='message.role'?lineObj.message?.role:lineObj[k];
+          if(val!==undefined){
+            if(typeof val==='object') val=Array.isArray(val)?`[Array ${val.length}]`:'{…}';
+            parts.push(`${k}: ${val}`);
+          }
+        });
+        lAttr.textContent=parts.join(' | ')+' ';
+        lineDiv.appendChild(lAttr);
+
+        const preview=document.createElement('span');
+        if(typeof lineObj.message?.content==='string'){
+          preview.textContent=lineObj.message.content.length>80?lineObj.message.content.slice(0,77)+'…':lineObj.message.content;
+        }else if(lineObj.summary){
+          preview.textContent=lineObj.summary;
+        }else{
+          preview.textContent=`(${ltype})`;
+        }
+        lineDiv.appendChild(preview);
+
+        const lRawBtn=document.createElement('button');
+        lRawBtn.textContent='Raw JSON';
+        lineDiv.appendChild(lRawBtn);
+        const lRawPre=document.createElement('pre');
+        lRawPre.className='raw-json';
+        lRawPre.innerHTML=syntaxHighlight(lineObj);
+        lineDiv.appendChild(lRawPre);
+        lRawBtn.onclick=()=>{
+          const show=lRawPre.style.display==='none'||!lRawPre.style.display;
+          lRawPre.style.display=show?'block':'none';
+          lRawBtn.textContent=show?'Hide JSON':'Raw JSON';
+        };
+
+        ctxDiv.appendChild(lineDiv);
+      }
+      body.appendChild(ctxDiv);
+    });
+
+    sessionsDiv.appendChild(section);
+  }
+
+  tocBody.appendChild(tocList);
+  document.getElementById('tocBody').style.display='block';
+  document.getElementById('tocToggle').textContent='[–]';
+}
+</script>
+</body>
+</html>
