@@ -1,6 +1,8 @@
-# JSONL Log Viewer
+# Claude Code JSONL Log Viewer
 
 A simple HTML tool for viewing and analyzing Claude Code JSONL log files in a human-readable format.
+
+NB This was made with heavy help from ChatGPT o3 and should not be relied on in any way.
 
 ## Usage
 
