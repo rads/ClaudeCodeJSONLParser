@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Claude Code JSONL Log Viewer with Git Integration</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-light: #dbeafe;
+      --secondary: #64748b;
+      --success: #059669;
+      --success-light: #d1fae5;
+      --warning: #d97706;
+      --warning-light: #fef3c7;
+      --error: #dc2626;
+      --error-light: #fee2e2;
+      --gray-50: #f8fafc;
+      --gray-100: #f1f5f9;
+      --gray-200: #e2e8f0;
+      --gray-300: #cbd5e1;
+      --gray-600: #475569;
+      --gray-700: #334155;
+      --gray-900: #0f172a;
+      --border-radius: 8px;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(135deg, var(--gray-50) 0%, #ffffff 100%);
+      color: var(--gray-900);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    header h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin: 0 0 0.5rem 0;
+      background: linear-gradient(135deg, var(--primary) 0%, #7c3aed 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    header p {
+      font-size: 1.125rem;
+      color: var(--gray-600);
+      margin: 0;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .upload-section {
+      background: white;
+      padding: 2rem;
+      border-radius: var(--border-radius);
+      margin-bottom: 2rem;
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--gray-200);
+    }
+
+    .upload-section h3 {
+      margin: 0 0 1rem 0;
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--gray-900);
+    }
+
+    input[type=file], .directory-select-btn {
+      width: 100%;
+      padding: 0.75rem;
+      border: 2px solid var(--gray-300);
+      border-radius: var(--border-radius);
+      font-size: 1rem;
+      transition: border-color 0.2s ease;
+      background: white;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    input[type=file]:focus, .directory-select-btn:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-light);
+    }
+
+    .directory-select-btn {
+      color: var(--gray-700);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .directory-select-btn:hover {
+      border-color: var(--primary);
+      background: var(--gray-50);
+      transform: none;
+      box-shadow: none;
+    }
+
+    .directory-select-btn::after {
+      content: "📁";
+      font-size: 1.2rem;
+    }
+
+
+    button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: var(--border-radius);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow-sm);
+    }
+
+    button:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-md);
+    }
+
+    button:disabled {
+      background: var(--gray-300);
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-minimal {
+      background: transparent;
+      color: var(--gray-600);
+      border: 1px solid var(--gray-300);
+      padding: 0.375rem 0.75rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      border-radius: 4px;
+      box-shadow: none;
+      margin-left: 0.5rem;
+      float: right;
+    }
+
+    .btn-minimal:hover {
+      background: var(--gray-50);
+      color: var(--gray-700);
+      border-color: var(--gray-400);
+      transform: none;
+      box-shadow: none;
+    }
+
+    .line-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .line-text {
+      flex: 1;
+    }
+
+    .line-buttons {
+      display: flex;
+      gap: 0.25rem;
+      flex-shrink: 0;
+    }
+
+    .section {
+      margin-bottom: 1.5rem;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--border-radius);
+      background: white;
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+
+    .section-header {
+      background: linear-gradient(135deg, var(--gray-100) 0%, var(--gray-50) 100%);
+      padding: 1rem 1.5rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background-color 0.2s ease;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .section-header:hover {
+      background: var(--gray-100);
+    }
+
+    .section-header h3 {
+      margin: 0;
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--gray-900);
+    }
+
+    .section-header span {
+      font-weight: 600;
+      color: var(--gray-600);
+      font-size: 1rem;
+    }
+
+    .section-body {
+      display: none;
+      padding: 1.5rem;
+    }
+
+    .line {
+      margin-bottom: 1rem;
+      border-left: 4px solid var(--gray-300);
+      padding: 1rem;
+      background: var(--gray-50);
+      border-radius: var(--border-radius);
+      transition: all 0.2s ease;
+    }
+
+    .line:hover {
+      background: white;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .line.user { border-color: var(--primary); background: var(--primary-light); }
+    .line.action { border-color: #f59e0b; background: #fef3c7; }
+    .line.assistant { border-color: #7c3aed; background: #f3e8ff; }
+    .line.assistant-tool-call { border-color: #8b5cf6; background: #ede9fe; }
+    .line.summary { border-color: var(--gray-600); background: var(--gray-100); }
+    .line.tool-result { border-color: var(--warning); background: var(--warning-light); }
+    .line.git-commit { border-color: var(--success); background: var(--success-light); }
+
+    .attrs {
+      font-size: 0.875rem;
+      color: var(--gray-600);
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .raw-json {
+      display: none;
+      white-space: pre;
+      background: #1e293b;
+      color: #f8fafc;
+      padding: 1rem;
+      border-radius: var(--border-radius);
+      overflow-x: auto;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      margin-top: 1rem;
+    }
+
+    #toc ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    #toc li {
+      margin-bottom: 0.5rem;
+    }
+
+    #toc a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+      padding: 0.5rem 0;
+      display: block;
+      transition: color 0.2s ease;
+    }
+
+    #toc a:hover {
+      color: var(--primary-hover);
+      text-decoration: underline;
+    }
+
+    .status {
+      margin: 1.5rem 0;
+      padding: 1rem 1.5rem;
+      border-radius: var(--border-radius);
+      text-align: center;
+      display: none;
+      font-weight: 500;
+    }
+
+    .status.loading {
+      background: var(--warning-light);
+      border: 1px solid #fbbf24;
+      color: #92400e;
+    }
+
+    .status.success {
+      background: var(--success-light);
+      border: 1px solid #10b981;
+      color: #065f46;
+    }
+
+    .status.error {
+      background: var(--error-light);
+      border: 1px solid #f87171;
+      color: #991b1b;
+    }
+
+    .git-stats {
+      font-size: 0.875rem;
+      color: var(--gray-600);
+      margin-top: 0.5rem;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    }
+
+    .commit-hash {
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+      color: var(--primary);
+      background: var(--primary-light);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .change-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-left: 0.5rem;
+    }
+
+    .change-low { background: var(--success-light); color: var(--success); }
+    .change-medium { background: var(--warning-light); color: var(--warning); }
+    .change-high { background: var(--error-light); color: var(--error); }
+
+    .git-commit-details {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--border-radius);
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+
+    .git-commit-details h5 {
+      margin: 0 0 0.75rem 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--gray-900);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .git-commit-details ul {
+      margin: 0 0 1rem 0;
+      padding-left: 1.5rem;
+    }
+
+    .git-commit-details li {
+      margin-bottom: 0.25rem;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+      font-size: 0.875rem;
+      color: var(--gray-700);
+    }
+
+    .git-commit-details pre {
+      background: var(--gray-50);
+      border: 1px solid var(--gray-200);
+      border-radius: var(--border-radius);
+      padding: 0.75rem;
+      font-size: 0.75rem;
+      line-height: 1.5;
+      overflow-x: auto;
+      margin: 0.5rem 0 1rem 0;
+    }
+
+    /* JSON syntax highlighting */
+    .key { color: #e11d48; }
+    .string { color: #059669; }
+    .number { color: #7c3aed; }
+    .boolean { color: #0284c7; }
+    .null { color: #ea580c; }
+
+    /* Responsive design */
+    @media (max-width: 768px) {
+      .container { padding: 1rem; }
+      header h1 { font-size: 2rem; }
+      .upload-section { padding: 1.5rem; }
+      .upload-area { padding: 2rem 1rem; }
+      .section-header { padding: 0.75rem 1rem; }
+      .section-body { padding: 1rem; }
+      .line { padding: 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Claude Code JSONL Log Viewer with Git Integration</h1>
+      <p>Upload a JSONL log file and optionally a Git repository to see them merged chronologically.</p>
+    </header>
+
+    <div class="upload-section">
+      <h3>📄 Upload Log File</h3>
+      <input type="file" id="fileInput" accept=".jsonl,.log,.txt">
+    </div>
+
+    <div class="upload-section">
+      <h3>📁 Upload Git Repository (Optional)</h3>
+      <input type="file" id="directoryInput" webkitdirectory directory multiple style="display: none;">
+      <button onclick="triggerDirectorySelect()" class="directory-select-btn">Choose Directory</button>
+      <div id="gitStatus" class="status"></div>
+    </div>
+
+    <div id="toc" class="section">
+      <div class="section-header" onclick="toggleToc()">
+        <h3>📋 Table of Contents</h3><span id="tocToggle">[+]</span>
+      </div>
+      <div id="tocBody" class="section-body"></div>
+    </div>
+
+    <div id="sessions"></div>
+  </div>
+
+
+  <!-- Load Git libraries from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/dist/lightning-fs.min.js"></script>
+  <script src="https://unpkg.com/isomorphic-git@1.25.6/index.umd.min.js"></script>
+
+<script>
+/* --------------------------------------------------
+   Global variables
+-------------------------------------------------- */
+let gitData = [];
+let logData = [];
+let gitFs = null;
+
+/* --------------------------------------------------
+   Helper utilities
+-------------------------------------------------- */
+const interestingAttributes=[
+  'type','timestamp','uuid','parentUuid','message.role',
+  'costUSD','durationMs','summary','toolUseResult'
+];
+const CONTINUATION_MARKER='This session is being continued from a previous conversation that ran out of context.';
+
+function toggleToc(){
+  const body=document.getElementById('tocBody');
+  const toggle=document.getElementById('tocToggle');
+  const show=body.style.display==='none'||!body.style.display;
+  body.style.display=show?'block':'none';
+  toggle.textContent=show?'[–]':'[+]';
+}
+
+function syntaxHighlight(json){
+  if(typeof json!=='string') json=JSON.stringify(json,undefined,2);
+  json=json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return json.replace(/("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"\n])*"(?=:)|"(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"\n])*"|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,m=>{
+    let cls='number';
+    if(/^"/.test(m)) cls=/:$/.test(m)?'key':'string';
+    else if(/true|false/.test(m)) cls='boolean';
+    else if(/null/.test(m)) cls='null';
+    return `<span class="${cls}">${m}</span>`;
+  });
+}
+
+function getType(obj){
+  if(obj.type==='git-commit') return 'git-commit';
+  if(obj.type==='summary') return 'summary';
+  if(obj.type==='assistant'){
+    if(Array.isArray(obj.message?.content))
+      return obj.message.content.some(c=>c.type==='tool_use')?'assistant-tool-call':'assistant';
+    return 'assistant';
+  }
+  if(obj.type==='user'){
+    const msgStr=typeof obj.message?.content==='string'?obj.message.content:'';
+    if(msgStr.startsWith(CONTINUATION_MARKER)) return 'action';
+    if(obj.isMeta) return 'user-meta';
+    if(obj.toolUseResult) return 'tool-result';
+    if(obj.message&&typeof obj.message.content!=='string') return 'tool-result';
+    return 'user';
+  }
+  return 'other';
+}
+
+// NEW HELPER FUNCTION for generating simple diffs
+async function generateFileDiff(oidA, oidB) {
+  try {
+    const { blob: blobAContent } = await git.readBlob({ fs: gitFs, dir: '/', oid: oidA });
+    const { blob: blobBContent } = await git.readBlob({ fs: gitFs, dir: '/', oid: oidB });
+    const textA = new TextDecoder().decode(blobAContent);
+    const textB = new TextDecoder().decode(blobBContent);
+
+    const linesA = textA.split('\n');
+    const linesB = textB.split('\n');
+    
+    // Basic diff algorithm (Myers diff is too complex for quick implementation here)
+    // This creates a simplified textual representation of changes.
+    // It shows lines from B that are not in A as added, and lines from A not in B as removed.
+    // This is not a true patch, but gives an idea of changes.
+
+    const diffLines = [];
+    const setA = new Set(linesA);
+    const setB = new Set(linesB);
+
+    linesA.forEach(line => {
+      if (!setB.has(line)) {
+        diffLines.push(`- ${line}`);
+      }
+    });
+
+    linesB.forEach(line => {
+      if (!setA.has(line)) {
+        diffLines.push(`+ ${line}`);
+      }
+    });
+    
+    if (diffLines.length === 0 && linesA.length === linesB.length) {
+        return "No textual changes detected (or only whitespace/order changes not caught by simple diff).";
+    }
+    if (diffLines.length === 0 && linesA.length !== linesB.length) {
+        return `Content changed (length A: ${linesA.length}, length B: ${linesB.length}), but no simple line diff.`;
+    }
+
+    // Limit the number of diff lines shown for brevity
+    const maxDiffLines = 30;
+    if (diffLines.length > maxDiffLines) {
+      return diffLines.slice(0, maxDiffLines).join('\n') + '\n... (diff truncated)';
+    }
+    
+    return diffLines.join('\n');
+
+  } catch (e) {
+    console.error(`Error generating diff for blobs: ${oidA} vs ${oidB}`, e);
+    return "Error generating diff.";
+  }
+}
+
+function extractSessionId(obj){
+  return obj.sessionUuid||obj.conversationId||obj.session_id||'default';
+}
+
+function formatChangePercentage(percentage) {
+  let className = 'change-low';
+  if (percentage > 50) className = 'change-high';
+  else if (percentage > 20) className = 'change-medium';
+  return `<span class="change-badge ${className}">${percentage}%</span>`;
+}
+
+function showGitStatus(message, type) {
+  const statusDiv = document.getElementById('gitStatus');
+  statusDiv.textContent = message;
+  statusDiv.className = `status ${type}`;
+  statusDiv.style.display = 'block';
+}
+
+function hideGitStatus() {
+  document.getElementById('gitStatus').style.display = 'none';
+}
+
+/* --------------------------------------------------
+   Git repository handling
+-------------------------------------------------- */
+window.addEventListener('load', function() {
+  if (typeof LightningFS !== 'undefined') {
+    gitFs = new LightningFS('fs');
+    window.git = git;
+    window.fs = gitFs;
+  }
+});
+
+window.triggerDirectorySelect = function() {
+  // Try the modern API first
+  if (window.showDirectoryPicker) {
+    selectDirectory();
+  } else {
+    // Fallback to file input with webkitdirectory
+    document.getElementById('directoryInput').click();
+  }
+}
+
+window.selectDirectory = async function() {
+  if (!window.showDirectoryPicker) {
+    showGitStatus('Directory upload not supported in this browser. Please use Chrome 86+ or Edge 86+.', 'error');
+    return;
+  }
+  
+  try {
+    const dirHandle = await window.showDirectoryPicker();
+    await importDirectoryHandle(dirHandle);
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      console.error('Error selecting directory:', error);
+      showGitStatus('Error selecting directory: ' + error.message, 'error');
+    }
+  }
+}
+
+
+async function importDirectoryHandle(dirHandle) {
+  showGitStatus('Importing repository...', 'loading');
+  
+  try {
+    await processDirectoryHandle(dirHandle, '/');
+    await analyzeGitRepository();
+  } catch (error) {
+    console.error('Error importing directory:', error);
+    showGitStatus('Error importing repository: ' + error.message, 'error');
+  }
+}
+
+
+async function processDirectoryHandle(dirHandle, basePath) {
+  for await (const [name, handle] of dirHandle.entries()) {
+    const fullPath = basePath + name;
+    
+    if (handle.kind === 'file') {
+      try {
+        const file = await handle.getFile();
+        const content = new Uint8Array(await file.arrayBuffer());
+        const dirPath = fullPath.substring(0, fullPath.lastIndexOf('/'));
+        if (dirPath && dirPath !== '/') {
+          await gitFs.promises.mkdir(dirPath, { recursive: true }).catch(() => {});
+        }
+        await gitFs.promises.writeFile(fullPath, content);
+      } catch (error) {
+        console.error(`Error processing file ${fullPath}:`, error);
+      }
+    } else if (handle.kind === 'directory') {
+      await gitFs.promises.mkdir(fullPath, { recursive: true }).catch(() => {});
+      await processDirectoryHandle(handle, fullPath + '/');
+    }
+  }
+}
+
+// MODIFIED: calculateCommitChanges is now async and returns detailed file changes
+async function calculateCommitChanges(commit, parentCommit) {
+  const commonParams = { fs: gitFs, dir: '/' };
+  let filesAdded = [];
+  let filesDeleted = [];
+  let filesModified = [];
+
+  if (!parentCommit) {
+    try {
+      const files = await git.listFiles({ ...commonParams, ref: commit.oid });
+      const nonGitFiles = files.filter(f => !f.startsWith('.git/'));
+      let totalLines = 0;
+      for (const file of nonGitFiles) {
+        filesAdded.push({ filepath: file }); // All files are added in the first commit
+        try {
+          const { blob } = await git.readBlob({ ...commonParams, oid: commit.oid, filepath: file });
+          totalLines += new TextDecoder().decode(blob).split('\n').length;
+        } catch {/* Skip non-text */}
+      }
+      return {
+        percentage: 100, filesChanged: nonGitFiles.length, totalFiles: nonGitFiles.length,
+        added: nonGitFiles.length, deleted: 0, modified: 0, // These are counts
+        linesAdded: totalLines, linesDeleted: 0, linesChanged: totalLines,
+        filesAdded, filesDeleted, filesModified // These are detailed lists
+      };
+    } catch (e) { 
+      return { 
+        percentage: 0, filesChanged: 0, totalFiles: 0, added: 0, deleted: 0, modified: 0, 
+        linesAdded: 0, linesDeleted: 0, linesChanged: 0,
+        filesAdded, filesDeleted, filesModified
+      };
+    }
+  }
+  
+  try {
+    console.log(`Calculating changes for commit ${commit.oid.substring(0,7)} vs parent ${parentCommit.oid.substring(0,7)}`);
+    
+    const changedEntries = [];
+    await git.walk({
+      ...commonParams,
+      trees: [git.TREE({ ref: parentCommit.oid }), git.TREE({ ref: commit.oid })],
+      map: async function (filepath, [A, B]) {
+        if (filepath === '.' || filepath.startsWith('.git/')) return;
+        const typeA = await A?.type(); 
+        const typeB = await B?.type();
+        const oidA = typeA === 'blob' ? await A.oid() : null;
+        const oidB = typeB === 'blob' ? await B.oid() : null;
+
+        if (typeA === undefined && typeB === 'blob') {
+          console.log(`Added: ${filepath}`);
+          changedEntries.push({ filepath, status: 'added', oidA, oidB });
+        } else if (typeA === 'blob' && typeB === undefined) {
+          console.log(`Deleted: ${filepath}`);
+          changedEntries.push({ filepath, status: 'deleted', oidA, oidB });
+        } else if (typeA === 'blob' && typeB === 'blob' && oidA !== oidB) {
+          console.log(`Modified: ${filepath} (${oidA.substring(0,7)} -> ${oidB.substring(0,7)})`);
+          changedEntries.push({ filepath, status: 'modified', oidA, oidB });
+        }
+      }
+    });
+    
+    const validChanges = changedEntries;
+    console.log(`Found ${validChanges.length} changed files:`, validChanges);
+    let numAdded = 0, numDeleted = 0, numModified = 0, linesAdded = 0, linesDeleted = 0;
+    
+    for (const change of validChanges) {
+        if (change.status === 'added') {
+            numAdded++;
+            filesAdded.push({ filepath: change.filepath });
+            try { 
+              const { blob } = await git.readBlob({ ...commonParams, oid: change.oidB }); 
+              linesAdded += new TextDecoder().decode(blob).split('\n').length; 
+            } catch {/*skip*/ }
+        } else if (change.status === 'deleted') {
+            numDeleted++;
+            filesDeleted.push({ filepath: change.filepath });
+            try { 
+              const { blob } = await git.readBlob({ ...commonParams, oid: change.oidA }); 
+              linesDeleted += new TextDecoder().decode(blob).split('\n').length; 
+            } catch {/*skip*/ }
+        } else if (change.status === 'modified') {
+            numModified++;
+            const diffText = await generateFileDiff(change.oidA, change.oidB);
+            filesModified.push({ filepath: change.filepath, diff: diffText });
+            try {
+                const { blob: blobA } = await git.readBlob({ ...commonParams, oid: change.oidA });
+                const { blob: blobB } = await git.readBlob({ ...commonParams, oid: change.oidB });
+                const countA = new TextDecoder().decode(blobA).split('\n').length;
+                const countB = new TextDecoder().decode(blobB).split('\n').length;
+                if (countB > countA) linesAdded += countB - countA; else linesDeleted += countA - countB;
+            } catch {/*skip*/ }
+        }
+    }
+    
+    const totalFilesList = await git.listFiles({ ...commonParams, ref: commit.oid });
+    const totalFileCount = totalFilesList.filter(f => !f.startsWith('.git/')).length;
+    const filesChangedCount = numAdded + numDeleted + numModified;
+    const percentage = totalFileCount > 0 ? Math.round((filesChangedCount / totalFileCount) * 100) : (filesChangedCount > 0 ? 100 : 0);
+    
+    return { 
+        percentage, filesChanged: filesChangedCount, totalFiles: totalFileCount, 
+        added: numAdded, deleted: numDeleted, modified: numModified, // Counts
+        linesAdded, linesDeleted, linesChanged: linesAdded + linesDeleted,
+        filesAdded, filesDeleted, filesModified // Detailed lists with diffs
+    };
+  } catch (error) {
+    console.error('Error calculating changes for commit:', commit.oid, error);
+    console.error('Parent commit:', parentCommit?.oid);
+    console.error('Full error details:', error);
+    return { 
+        percentage: 0, filesChanged: 0, totalFiles: 0, added: 0, deleted: 0, modified: 0, 
+        linesAdded: 0, linesDeleted: 0, linesChanged: 0,
+        filesAdded, filesDeleted, filesModified
+    };
+  }
+}
+
+/* --------------------------------------------------
+   Log file handling
+-------------------------------------------------- */
+document.getElementById('fileInput').addEventListener('change',e=>{
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>processLogText(ev.target.result);
+  reader.readAsText(file);
+});
+
+document.getElementById('directoryInput').addEventListener('change', async (e) => {
+  const files = e.target.files;
+  if (!files || files.length === 0) return;
+  
+  showGitStatus('Processing directory files...', 'loading');
+  
+  try {
+    // Clear the existing filesystem
+    await gitFs.promises.rmdir('/', { recursive: true }).catch(() => {});
+    await gitFs.promises.mkdir('/', { recursive: true }).catch(() => {});
+    
+    // Process all files
+    for (const file of files) {
+      const relativePath = '/' + file.webkitRelativePath;
+      const dirPath = relativePath.substring(0, relativePath.lastIndexOf('/'));
+      
+      if (dirPath && dirPath !== '/') {
+        await gitFs.promises.mkdir(dirPath, { recursive: true }).catch(() => {});
+      }
+      
+      const content = new Uint8Array(await file.arrayBuffer());
+      await gitFs.promises.writeFile(relativePath, content);
+    }
+    
+    await analyzeGitRepository();
+  } catch (error) {
+    console.error('Error processing directory:', error);
+    showGitStatus('Error processing directory: ' + error.message, 'error');
+  }
+});
+
+function processLogText(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim().length);
+  const parsed=[];
+  for(const l of lines){
+    try{parsed.push(JSON.parse(l));}catch{/* skip bad JSON */}
+  }
+  logData=parsed.filter(o=>{
+    if(!o) return false;
+    if(o.type||o.message||o.summary||o.toolUseResult||o.isMeta) return true;
+    const keys=Object.keys(o);
+    return !(keys.length<=2&&keys.includes('uuid'));
+  });
+  
+  render(mergeDataSources());
+}
+
+
+// --- Timestamp helper and debug --- //
+function toMillis(ts) {
+  if (ts === undefined || ts === null) return 0;
+  if (typeof ts === 'number') return ts;
+  if (typeof ts === 'string') {
+    const d = Date.parse(ts);
+    return isNaN(d) ? 0 : d;
+  }
+  return 0;
+}
+
+
+// Function to create a DOM element for a regular log entry
+function createLogEntryElement(lineObj) {
+  const ltype = getType(lineObj);
+  // Skip 'other' types if they don't have meaningful content, or if they are git commits (handled separately)
+  if (ltype === 'other' || ltype === 'git-commit') {
+      // Further check for 'other': only render if it has some identifiable content
+      if (ltype === 'other' && !lineObj.message && !lineObj.summary && !lineObj.costUSD && !lineObj.durationMs && !Object.keys(lineObj).some(k => k.toLowerCase().includes('result'))) {
+          return null;
+      }
+      if (ltype === 'git-commit') return null; // Git commits are handled by their own specific rendering block
+  }
+
+  const lineDiv = document.createElement('div');
+  lineDiv.className = `line ${ltype}`;
+
+  const lAttr = document.createElement('span');
+  lAttr.className = 'attrs';
+  const parts = [];
+  // Broader set of attributes for generic log entries
+  const genericAttributes = ['type', 'timestamp', 'uuid', 'parentUuid', 'message.role', 'costUSD', 'durationMs', 'summary', 'toolUseResult', 'userType', 'error', 'isMeta'];
+  genericAttributes.forEach(k => {
+    let val;
+    if (k.includes('.')) {
+      const [objKey, subKey] = k.split('.');
+      val = lineObj[objKey] ? lineObj[objKey][subKey] : undefined;
+    } else {
+      val = lineObj[k];
+    }
+    if (val !== undefined) {
+      if (k === 'timestamp' && val) {
+        parts.push(`[${new Date(toMillis(val)).toLocaleString()}]`);
+      } else if (typeof val === 'object') {
+        parts.push(`${k}: ${Array.isArray(val) ? `[Array ${val.length}]` : '{…}'}`);
+      } else {
+        parts.push(`${k}: ${val}`);
+      }
+    }
+  });
+  lAttr.textContent = parts.join(' | ') + ' ';
+  
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'line-content';
+  
+  const textDiv = document.createElement('div');
+  textDiv.className = 'line-text';
+  textDiv.appendChild(lAttr);
+
+  const preview = document.createElement('span');
+  if (typeof lineObj.message?.content === 'string') {
+    preview.textContent = lineObj.message.content.length > 150 ? lineObj.message.content.slice(0, 147) + '…' : lineObj.message.content;
+  } else if (lineObj.summary) {
+    preview.textContent = lineObj.summary;
+  } else if (typeof lineObj.message?.content === 'object' && lineObj.message?.content !== null) {
+    try {
+        preview.textContent = JSON.stringify(lineObj.message.content).slice(0,150) + (JSON.stringify(lineObj.message.content).length > 150 ? '...':'');
+    } catch { preview.textContent = '[Object content]'; }
+  } else if (Object.keys(lineObj).length > 0) {
+    preview.textContent = `(${ltype} - no direct content/summary)`;
+  } else {
+    preview.textContent = `(${ltype})`;
+  }
+  textDiv.appendChild(preview);
+
+  const buttonsDiv = document.createElement('div');
+  buttonsDiv.className = 'line-buttons';
+
+  const lRawBtn = document.createElement('button');
+  lRawBtn.className = 'btn-minimal';
+  lRawBtn.textContent = 'Raw JSON';
+  buttonsDiv.appendChild(lRawBtn);
+
+  contentDiv.appendChild(textDiv);
+  contentDiv.appendChild(buttonsDiv);
+  lineDiv.appendChild(contentDiv);
+  const lRawPre = document.createElement('pre');
+  lRawPre.className = 'raw-json';
+  lRawPre.innerHTML = syntaxHighlight(lineObj);
+  lineDiv.appendChild(lRawPre);
+  lRawBtn.onclick = (event) => {
+    event.stopPropagation(); // Prevent section collapse/expand if button is inside header
+    const show = lRawPre.style.display === 'none' || !lRawPre.style.display;
+    lRawPre.style.display = show ? 'block' : 'none';
+    lRawBtn.textContent = show ? 'Hide JSON' : 'Raw JSON';
+  };
+
+  return lineDiv;
+}
+
+function mergeDataSources() {
+  // Merge log and git data, sorted by timestamp
+  const combined = [...logData, ...gitData].sort((a, b) => {
+    const tA = toMillis(a.timestamp ?? (a.message && a.message.timestamp));
+    const tB = toMillis(b.timestamp ?? (b.message && b.message.timestamp));
+    return tA - tB;
+  });
+  return combined;
+}
+
+
+/* --------------------------------------------------
+   Rendering
+-------------------------------------------------- */
+function render(data){
+  const sessionsDiv=document.getElementById('sessions');
+  sessionsDiv.innerHTML='';
+  const tocBody=document.getElementById('tocBody');
+  tocBody.innerHTML='';
+
+  const sessionsToRender={};
+  if (gitData.length > 0) {
+    sessionsToRender['combined_timeline'] = data;
+  } else {
+    data.forEach(o=>{(sessionsToRender[extractSessionId(o)]=sessionsToRender[extractSessionId(o)]||[]).push(o);});
+  }
+
+  const tocList=document.createElement('ul');
+  let sessionCounter=0;
+
+  for(const [sid,arr] of Object.entries(sessionsToRender)){
+    sessionCounter++;
+    const section=document.createElement('div');
+    section.className='section';
+    section.id=`session_${sessionCounter}`;
+
+    const header=document.createElement('div');
+    header.className='section-header collapsible';
+    const sessionTitle = (gitData.length > 0 && sid === 'combined_timeline') 
+                         ? "Combined Log and Git Timeline" 
+                         : `Session ${sessionCounter} (${sid})`;
+    header.innerHTML=`<h3>${sessionTitle}</h3><span>[+]</span>`;
+    header.onclick=()=>{
+      const body=section.querySelector('.section-body');
+      const span=header.querySelector('span');
+      const show=body.style.display==='none'||!body.style.display;
+      body.style.display=show?'block':'none';
+      span.textContent=show?'[–]':'[+]';
+    };
+    section.appendChild(header);
+
+    const body=document.createElement('div');
+    body.className='section-body';
+    body.style.display='none';
+    section.appendChild(body);
+
+    const tocItem=document.createElement('li');
+    tocItem.innerHTML=`<a href="#${section.id}">${sessionTitle}</a>`;
+    tocList.appendChild(tocItem);
+
+    // New rendering loop
+    for (let i = 0; i < arr.length; /* i is incremented in branches */) {
+      const entry = arr[i];
+      const entryType = getType(entry);
+
+      if (entryType === 'user') { // Strictly 'user' type creates the collapsible section
+        const userMessage = entry;
+        const userDiv = document.createElement('div');
+        // Ensure 'user' messages get the specific 'user' class, not 'action' if getType somehow changed it
+        userDiv.className = `line user`; 
+
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'line-content';
+        
+        const textDiv = document.createElement('div');
+        textDiv.className = 'line-text';
+
+        const attr = document.createElement('span');
+        attr.className = 'attrs';
+        // Use toMillis for consistency, though userMessage.timestamp should be fine
+        if (userMessage.timestamp) attr.textContent += `[${new Date(toMillis(userMessage.timestamp)).toLocaleString()}] `;
+        attr.textContent += `USER `; // Label it clearly as USER
+        if (userMessage.uuid) attr.textContent += `| uuid: ${userMessage.uuid.substring(0,8)} `;
+        if (userMessage.userType) attr.textContent += `(${userMessage.userType}) `;
+        textDiv.appendChild(attr);
+
+        const msg = document.createElement('span');
+        // Display content, handling non-string cases simply
+        const content = userMessage.message?.content;
+        msg.textContent = typeof content === 'string' ? content : (content ? '[structured user content]' : '[no user content]');
+        textDiv.appendChild(msg);
+
+        const buttonsDiv = document.createElement('div');
+        buttonsDiv.className = 'line-buttons';
+
+        const actBtn = document.createElement('button');
+        actBtn.className = 'btn-minimal';
+        actBtn.textContent = 'Show actions';
+        buttonsDiv.appendChild(actBtn);
+
+        const rawBtn = document.createElement('button');
+        rawBtn.className = 'btn-minimal';
+        rawBtn.textContent = 'Raw JSON';
+        buttonsDiv.appendChild(rawBtn);
+
+        contentDiv.appendChild(textDiv);
+        contentDiv.appendChild(buttonsDiv);
+        userDiv.appendChild(contentDiv);
+        const rawPre = document.createElement('pre');
+        rawPre.className = 'raw-json';
+        rawPre.innerHTML = syntaxHighlight(userMessage); // Raw JSON for the user message itself
+        userDiv.appendChild(rawPre);
+        rawBtn.onclick = (event) => {
+          event.stopPropagation();
+          const show = rawPre.style.display === 'none' || !rawPre.style.display;
+          rawPre.style.display = show ? 'block' : 'none';
+          rawBtn.textContent = show ? 'Hide JSON' : 'Raw JSON';
+        };
+        body.appendChild(userDiv); // Add the user message div to the main body of the section
+
+        const ctxDiv = document.createElement('div');
+        ctxDiv.style.display = 'none'; // Context is hidden by default
+        ctxDiv.style.marginLeft = '20px';
+        actBtn.onclick = (event) => {
+          event.stopPropagation();
+          const show = ctxDiv.style.display === 'none' || !ctxDiv.style.display;
+          ctxDiv.style.display = show ? 'block' : 'none';
+          actBtn.textContent = show ? 'Hide actions' : 'Show actions';
+        };
+
+        let contextEndIndex = i + 1;
+        while (contextEndIndex < arr.length) {
+          const nextEntry = arr[contextEndIndex];
+          const nextEntryType = getType(nextEntry);
+          // Context ends if we hit another 'user' message or a 'git-commit'
+          if (nextEntryType === 'user' || nextEntryType === 'git-commit') {
+            break;
+          }
+          // All other types get added to context (action, assistant, tool-result, summary, etc.)
+          const contextElement = createLogEntryElement(nextEntry);
+          if (contextElement) {
+            ctxDiv.appendChild(contextElement);
+          }
+          contextEndIndex++;
+        }
+        if (ctxDiv.hasChildNodes()) {
+            body.appendChild(ctxDiv); // Add the context div to the main body of the section
+        }
+        i = contextEndIndex; // Advance main loop index past the user message and its context
+
+      } else if (entryType === 'git-commit') {
+        // Git commit rendering remains the same, directly to the body
+        const gitDiv = document.createElement('div');
+        gitDiv.className = 'line git-commit';
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'line-content';
+        
+        const textDiv = document.createElement('div');
+        textDiv.className = 'line-text';
+        
+        const attr = document.createElement('span');
+        attr.className = 'attrs';
+        if (entry.timestamp) {
+          attr.textContent += `[${new Date(toMillis(entry.timestamp)).toLocaleString()}] `;
+        }
+        attr.textContent += `Git Commit | `;
+        textDiv.appendChild(attr);
+        
+        const commitHash = document.createElement('span');
+        commitHash.className = 'commit-hash';
+        commitHash.textContent = (entry.commit?.hash || 'N/A').substring(0, 7);
+        textDiv.appendChild(commitHash);
+        
+        const message = document.createElement('span');
+        message.textContent = ` ${(entry.commit?.message || '').split('\n')[0]}`;
+        textDiv.appendChild(message);
+        
+        if(entry.commit?.changes){ 
+            const percentageBadge = document.createElement('span');
+            percentageBadge.innerHTML = formatChangePercentage(entry.commit.changes.percentage);
+            textDiv.appendChild(percentageBadge);
+            
+            const stats = document.createElement('div');
+            stats.className = 'git-stats';
+            stats.innerHTML = 
+            `Files: +${entry.commit.changes.added} ~${entry.commit.changes.modified} -${entry.commit.changes.deleted} | 
+             Lines: +${entry.commit.changes.linesAdded} -${entry.commit.changes.linesDeleted}`;
+            textDiv.appendChild(stats);
+        }
+        
+        const buttonsDiv = document.createElement('div');
+        buttonsDiv.className = 'line-buttons';
+        
+        // Add "Details" button and collapsible details section
+        const detailsBtn = document.createElement('button');
+        detailsBtn.className = 'btn-minimal';
+        detailsBtn.textContent = 'Details';
+        buttonsDiv.appendChild(detailsBtn);
+
+        contentDiv.appendChild(textDiv);
+        contentDiv.appendChild(buttonsDiv);
+        gitDiv.appendChild(contentDiv);
+
+        const detailsDiv = document.createElement('div');
+        detailsDiv.className = 'git-commit-details'; // Add a class for potential styling
+        detailsDiv.style.display = 'none';
+        detailsDiv.style.marginTop = '5px';
+        detailsDiv.style.paddingLeft = '15px';
+        detailsDiv.style.borderLeft = '2px solid #ccc';
+
+        const changes = entry.commit?.changes;
+        if (changes) {
+            if (changes.filesAdded && changes.filesAdded.length > 0) {
+                const addedHeader = document.createElement('h5');
+                addedHeader.textContent = 'Files Added:';
+                detailsDiv.appendChild(addedHeader);
+                const addedList = document.createElement('ul');
+                changes.filesAdded.forEach(f => {
+                    const item = document.createElement('li');
+                    item.textContent = f.filepath;
+                    addedList.appendChild(item);
+                });
+                detailsDiv.appendChild(addedList);
+            }
+
+            if (changes.filesDeleted && changes.filesDeleted.length > 0) {
+                const deletedHeader = document.createElement('h5');
+                deletedHeader.textContent = 'Files Deleted:';
+                detailsDiv.appendChild(deletedHeader);
+                const deletedList = document.createElement('ul');
+                changes.filesDeleted.forEach(f => {
+                    const item = document.createElement('li');
+                    item.textContent = f.filepath;
+                    deletedList.appendChild(item);
+                });
+                detailsDiv.appendChild(deletedList);
+            }
+
+            if (changes.filesModified && changes.filesModified.length > 0) {
+                const modifiedHeader = document.createElement('h5');
+                modifiedHeader.textContent = 'Files Modified:';
+                detailsDiv.appendChild(modifiedHeader);
+                changes.filesModified.forEach(f => {
+                    const item = document.createElement('div');
+                    item.style.marginBottom = '5px';
+                    const fileLabel = document.createElement('strong');
+                    fileLabel.textContent = f.filepath;
+                    item.appendChild(fileLabel);
+                    if (f.diff) {
+                        const diffPre = document.createElement('pre');
+                        diffPre.style.backgroundColor = '#f0f0f0';
+                        diffPre.style.padding = '5px';
+                        diffPre.style.border = '1px solid #ddd';
+                        diffPre.style.whiteSpace = 'pre-wrap'; // Ensure diff text wraps
+                        diffPre.style.maxHeight = '200px'; // Limit height of individual diffs
+                        diffPre.style.overflowY = 'auto';
+                        diffPre.textContent = f.diff;
+                        item.appendChild(diffPre);
+                    }
+                    detailsDiv.appendChild(item);
+                });
+            }
+            if (!detailsDiv.hasChildNodes()) {
+                 detailsDiv.textContent = "No detailed file changes recorded for this commit.";
+            }
+        } else {
+            detailsDiv.textContent = "Change details not available.";
+        }
+        gitDiv.appendChild(detailsDiv);
+
+        detailsBtn.onclick = (event) => {
+            event.stopPropagation();
+            const show = detailsDiv.style.display === 'none' || !detailsDiv.style.display;
+            detailsDiv.style.display = show ? 'block' : 'none';
+            detailsBtn.textContent = show ? 'Hide Details' : 'Details';
+        };
+
+        body.appendChild(gitDiv);
+        i++; // Advance main loop index
+
+      } else {
+        // All other types (action, assistant, summary, tool-result, other etc.) encountered here
+        // are not 'user' or 'git-commit' and were not captured by a preceding 'user' message's context.
+        // Per the request, these should not be rendered at the top level.
+        i++; // Simply advance the loop index, effectively skipping their top-level rendering.
+      }
+    }
+
+    sessionsDiv.appendChild(section);
+  }
+
+  tocBody.appendChild(tocList);
+  document.getElementById('tocBody').style.display = 'block';
+  document.getElementById('tocToggle').textContent = '[–]';
+}
+
+// --- analyzeGitRepository needs to await calculateCommitChanges --- 
+
+async function analyzeGitRepository() {
+  showGitStatus('Analyzing Git repository...', 'loading');
+  try {
+    await gitFs.promises.stat('/.git');
+  } catch (error) {
+    showGitStatus('No .git directory found. Please select a valid Git repository.', 'error');
+    return;
+  }
+  
+  try {
+    const commits = await git.log({ fs: gitFs, dir: '/' });
+    if (commits.length === 0) {
+      showGitStatus('No commits found in repository', 'error');
+      return;
+    }
+    
+    showGitStatus('Calculating changes for each commit...', 'loading');
+    gitData = []; 
+    
+    for (let i = 0; i < commits.length; i++) {
+      const commit = commits[i];
+      const parentCommit = i < commits.length - 1 ? commits[i + 1] : null;
+      // MODIFIED: await the call to calculateCommitChanges
+      const changes = await calculateCommitChanges(commit, parentCommit);
+      
+      const gitEntry = {
+        type: 'git-commit',
+        originalJson: JSON.stringify(commit, null, 2),
+        timestamp: commit.commit.author.timestamp * 1000, 
+        uuid: commit.oid,
+        commit: {
+          hash: commit.oid,
+          message: commit.commit.message,
+          author: commit.commit.author.name,
+          timestamp: commit.commit.author.timestamp,
+          changes: changes // This now includes detailed file lists and diffs
+        }
+      };
+      gitData.push(gitEntry);
+      if (i % 10 === 0 || i === commits.length - 1) {
+        showGitStatus(`Analyzing commit ${i + 1} of ${commits.length}... (may take a while for diffs)`, 'loading');
+      }
+    }
+    
+    showGitStatus(`Git analysis complete! ${commits.length} commits processed.`, 'success');
+    setTimeout(hideGitStatus, 3000);
+    
+    if (logData.length > 0) {
+      render(mergeDataSources());
+    }
+    
+  } catch (error) {
+    console.error('Error analyzing repository:', error);
+    showGitStatus('Error analyzing repository: ' + error.message, 'error');
+  }
+}
+</script>
+</body>
+</html>
