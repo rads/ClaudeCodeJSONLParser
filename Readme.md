@@ -15,6 +15,8 @@ NB: This was made with heavy help from ChatGPT o3 and Claude 4 Sonnet and should
 
 ## Usage
 
+0. Download `combined-log-viewer.html`
+
 ### Basic Log Viewing
 1. Open `combined-log-viewer.html` in your web browser
 2. Click "Choose File" under "Upload Log File" and select your Claude Code JSONL log file
@@ -26,6 +28,7 @@ NB: This was made with heavy help from ChatGPT o3 and Claude 4 Sonnet and should
 6. Use "Raw JSON" to see the original log data for any entry
 
 ### Git Repository Integration
+0. Do the steps above to open the log for viewing
 1. Click "Choose Directory" under "Upload Git Repository (Optional)"
 2. Select a Git repository folder (must contain `.git` directory)
 3. The tool will analyze all commits and calculate:
